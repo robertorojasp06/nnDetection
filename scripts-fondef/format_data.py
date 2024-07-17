@@ -28,20 +28,24 @@ class Formatter:
         # Copy image
         shutil.copyfile(case["path_to_img"], path_to_output_img)
         # Transform mask to have consecutive integers
+        mask_img = sitk.ReadImage(str(case["path_to_gt"]))
+        mask_array = sitk.GetArrayFromImage(mask_img)
+        new_mask_array = np.zeros(mask_array.shape).astype(mask_array.dtype)
         with open(case["path_to_labels"], 'r') as file:
             labels = json.load(file)
-        # shutil.copyfile(case["path_to_gt"], path_to_output_gt)
-        mask_img = sitk.ReadImage(case["path_to_gt"])
-        mask_array = sitk.GetArrayFromImage(mask_img)
-        new_mask_array = np.zeros.astype(mask_array.dtype)
-        # for value, label in label.items():
-        #     rows, c
-
-        # Class 0 for tumors, class 1 for adenopathy
-        new_labels = {
-            value: 0 if label.split(',')[0].strip() in ['p', 'm'] else 1
-            for value, label in labels.items()
-        }
+        new_labels = {}
+        for new_value, (value, label) in enumerate(labels.items(), start=1):
+            slices, rows, cols = np.where(mask_array == int(value))
+            new_mask_array[slices, rows, cols] = new_value
+            # Class 0 for tumors, class 1 for adenopathy
+            new_labels.update({
+                str(new_value): 0 if label.split(',')[0].strip() in ['p', 'm'] else 1
+            })
+        # Save new mask
+        new_mask_img = sitk.GetImageFromArray(new_mask_array)
+        new_mask_img.CopyInformation(mask_img)
+        sitk.WriteImage(new_mask_img, str(path_to_output_gt))
+        # Save new labels
         new_labels = {"instances": new_labels}
         with open(path_to_output_label, 'w') as file:
             json.dump(new_labels, file, indent=4)
